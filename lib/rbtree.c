@@ -550,6 +550,31 @@ struct rb_node *rb_prev(const struct rb_node *node)
 }
 EXPORT_SYMBOL(rb_prev);
 
+#ifdef CONFIG_RANDOMIZE_CFS
+/* This function returns a random node of the tree */
+#include <linux/random.h>
+
+struct rb_node *rb_random(const struct rb_root *root)
+{
+	struct rb_node *n;
+	unsigned long idx;
+
+	get_random_bytes (&idx, sizeof (unsigned long));
+	idx = idx % 5;
+	n = root->rb_node;
+	if (!n)
+		return NULL;
+	
+	while (idx < 0) {
+		n = rb_next (n);
+		idx--;
+	}
+
+	return n;
+}
+EXPORT_SYMBOL(rb_random);
+#endif
+
 void rb_replace_node(struct rb_node *victim, struct rb_node *new,
 		     struct rb_root *root)
 {

@@ -2044,6 +2044,12 @@ config PROFILING
 config TRACEPOINTS
 	bool
 
+config RANDOMIZE_CFS
+	bool "Randomize CFS"
+	help
+		Say Y here to replace the current behavior of how CFS picks the
+		next task with one that is completely randomized.
+
 endmenu		# General setup
 
 source "arch/Kconfig"

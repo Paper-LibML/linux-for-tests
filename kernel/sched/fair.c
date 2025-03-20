@@ -605,6 +605,18 @@ static struct sched_entity *__pick_next_entity(struct sched_entity *se)
 	return __node_2_se(next);
 }
 
+#ifdef CONFIG_RANDOMIZE_CFS
+static noinline struct sched_entity *
+__pick_random_entity(struct cfs_rq *cfs_rq)
+{
+	struct rb_node *next = rb_random (&cfs_rq->tasks_timeline.rb_root);
+	
+	if (!next) return NULL;
+	
+	return __node_2_se (next);
+}
+#endif
+
 #ifdef CONFIG_SCHED_DEBUG
 struct sched_entity *__pick_last_entity(struct cfs_rq *cfs_rq)
 {
@@ -4523,6 +4535,13 @@ wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se);
 static struct sched_entity *
 pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 {
+#ifdef CONFIG_RANDOMIZE_CFS
+	struct sched_entity *se = __pick_random_entity(cfs_rq);
+
+	if (!se) return curr;
+
+	return se;
+#else
 	struct sched_entity *left = __pick_first_entity(cfs_rq);
 	struct sched_entity *se;
 
@@ -4567,6 +4586,7 @@ pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 	}
 
 	return se;
+#endif
 }
 
 static bool check_cfs_rq_runtime(struct cfs_rq *cfs_rq);
