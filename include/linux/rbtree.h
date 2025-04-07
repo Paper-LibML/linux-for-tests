@@ -35,6 +35,9 @@
 #define RB_CLEAR_NODE(node)  \
 	((node)->__rb_parent_color = (unsigned long)(node))
 
+#define rb_increase_node_count(root)  (++((root)->rb_num_nodes))
+#define rb_decrease_node_count(root)  (--((root)->rb_num_nodes))
+#define rb_get_node_count(root)       ((root)->rb_num_nodes)
 
 extern void rb_insert_color(struct rb_node *, struct rb_root *);
 extern void rb_erase(struct rb_node *, struct rb_root *);

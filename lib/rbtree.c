@@ -434,6 +434,7 @@ static const struct rb_augment_callbacks dummy_callbacks = {
 void rb_insert_color(struct rb_node *node, struct rb_root *root)
 {
 	__rb_insert(node, root, dummy_rotate);
+	rb_increase_node_count(root);
 }
 EXPORT_SYMBOL(rb_insert_color);
 
@@ -443,6 +444,7 @@ void rb_erase(struct rb_node *node, struct rb_root *root)
 	rebalance = __rb_erase_augmented(node, root, &dummy_callbacks);
 	if (rebalance)
 		____rb_erase_color(rebalance, root, dummy_rotate);
+	rb_decrease_node_count(root);
 }
 EXPORT_SYMBOL(rb_erase);
 
@@ -556,17 +558,17 @@ EXPORT_SYMBOL(rb_prev);
 
 struct rb_node *rb_random(const struct rb_root *root)
 {
-	struct rb_node *n;
+	struct rb_node *node;
 	unsigned long idx;
 
 	get_random_bytes (&idx, sizeof (unsigned long));
-	idx = idx % 5;
-	n = root->rb_node;
-	if (!n)
+	idx = idx % rb_get_node_count(root);
+	node = root->rb_node;
+	if (!node)
 		return NULL;
-	
+
 	while (idx < 0) {
-		n = rb_next (n);
+		node = rb_next(node);
 		idx--;
 	}
 
