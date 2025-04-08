@@ -572,7 +572,7 @@ struct rb_node *rb_random(const struct rb_root *root)
 		idx--;
 	}
 
-	return n;
+	return node;
 }
 EXPORT_SYMBOL(rb_random);
 #endif
