@@ -29,7 +29,7 @@ struct rb_root_cached {
 	struct rb_node *rb_leftmost;
 };
 
-#define RB_ROOT (struct rb_root) { NULL, }
-#define RB_ROOT_CACHED (struct rb_root_cached) { {NULL, }, NULL }
+#define RB_ROOT (struct rb_root) { NULL, 0, }
+#define RB_ROOT_CACHED (struct rb_root_cached) { {NULL, 0, }, NULL }
 
 #endif
