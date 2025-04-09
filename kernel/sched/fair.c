@@ -609,11 +609,12 @@ static struct sched_entity *__pick_next_entity(struct sched_entity *se)
 static noinline struct sched_entity *
 __pick_random_entity(struct cfs_rq *cfs_rq)
 {
-	struct rb_node *next = rb_random (&cfs_rq->tasks_timeline.rb_root);
+	struct rb_node *next = rb_random(&cfs_rq->tasks_timeline.rb_root);
 	
-	if (!next) return NULL;
-	
-	return __node_2_se (next);
+	if (!next)
+		return NULL;
+
+	return __node_2_se(next);
 }
 #endif
 

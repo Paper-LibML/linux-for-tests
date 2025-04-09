@@ -561,16 +561,15 @@ struct rb_node *rb_random(const struct rb_root *root)
 	struct rb_node *node;
 	unsigned long idx;
 
-	get_random_bytes (&idx, sizeof (unsigned long));
+	get_random_bytes(&idx, sizeof (unsigned long));
 	idx = idx % rb_get_node_count(root);
 	node = root->rb_node;
+
 	if (!node)
 		return NULL;
 
-	while (idx < 0) {
+	while (idx-- < 0)
 		node = rb_next(node);
-		idx--;
-	}
 
 	return node;
 }
