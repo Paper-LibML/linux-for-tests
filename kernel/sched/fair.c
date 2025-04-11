@@ -22,9 +22,6 @@
  */
 #include "sched.h"
 
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
-
 /*
  * Targeted preemption latency for CPU-bound tasks:
  *
@@ -625,44 +622,6 @@ __pick_random_entity(struct cfs_rq *cfs_rq)
 
 	return se;
 }
-
-static int random_cfs_stats_show(struct seq_file *m, void *v)
-{
-	struct task_struct *p;
-	struct task_struct *t;
-	struct sched_entity *se;
-
-	for_each_process_thread(p, t) {
-		if (t->sched_class != &fair_sched_class)
-			continue;
-
-		se = &t->se;
-
-		seq_printf(m, "PID %d (%s) picked %llu times\n",
-		           t->pid, t->comm, se->statistics.nr_random_picks);
-	}
-
-	return 0;
-}
-
-static int random_cfs_stats_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, random_cfs_stats_show, NULL);
-}
-
-static const struct proc_ops random_cfs_stats_fops = {
-	.proc_open    = random_cfs_stats_open,
-	.proc_read    = seq_read,
-	.proc_lseek   = seq_lseek,
-	.proc_release = single_release,
-};
-
-static int __init random_cfs_proc_init(void)
-{
-	proc_create("random_cfs_stats", 0, NULL, &random_cfs_stats_fops);
-	return 0;
-}
-late_initcall(random_cfs_proc_init);
 #endif
 
 #ifdef CONFIG_SCHED_DEBUG

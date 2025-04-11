@@ -167,6 +167,85 @@ static const struct file_operations sched_feat_fops = {
 	.release	= single_release,
 };
 
+#ifdef CONFIG_RANDOMIZE_CFS
+
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+
+#define COMM_PREFIX_LEN 16
+
+static char comm_prefix_filter[COMM_PREFIX_LEN] = "";
+
+static int random_cfs_stats_show(struct seq_file *m, void *v)
+{
+	struct task_struct *p;
+	struct task_struct *t;
+	struct sched_entity *se;
+
+	for_each_process_thread(p, t) {
+		if (t->sched_class != &fair_sched_class)
+			continue;
+
+		if (comm_prefix_filter[0] &&
+		    strncmp(t->comm, comm_prefix_filter, strlen(comm_prefix_filter)) != 0)
+			continue;
+
+		se = &t->se;
+
+		seq_printf(m, "PID %d (%s) picked %llu times\n",
+		           t->pid, t->comm, se->statistics.nr_random_picks);
+	}
+
+	return 0;
+}
+
+static int random_cfs_stats_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, random_cfs_stats_show, NULL);
+}
+
+static ssize_t random_cfs_stats_write(struct file *file, const char __user *buf,
+	size_t count, loff_t *ppos)
+{
+	char input[COMM_PREFIX_LEN];
+
+	if (count >= COMM_PREFIX_LEN)
+		return -EINVAL;
+
+	if (copy_from_user(input, buf, count))
+		return -EFAULT;
+
+	input[count] = '\0';
+
+	if (input[count - 1] == '\n')
+		input[count - 1] = '\0';
+
+	// Save the prefix to global buffer
+	strncpy(comm_prefix_filter, input, COMM_PREFIX_LEN);
+	comm_prefix_filter[COMM_PREFIX_LEN - 1] = '\0';
+
+	pr_info("random_cfs: set filter prefix to '%s'\n", comm_prefix_filter);
+
+	return count;
+}
+
+static const struct proc_ops random_cfs_stats_fops = {
+	.proc_open    = random_cfs_stats_open,
+	.proc_write	  = random_cfs_stats_write,
+	.proc_read    = seq_read,
+	.proc_lseek   = seq_lseek,
+	.proc_release = single_release,
+};
+
+static int __init random_cfs_proc_init(void)
+{
+	proc_create("random_cfs_stats", 0, NULL, &random_cfs_stats_fops);
+	return 0;
+}
+late_initcall(random_cfs_proc_init);
+
+#endif /* RANDOMIZE_CFS */
+
 #ifdef CONFIG_SMP
 
 static ssize_t sched_scaling_write(struct file *filp, const char __user *ubuf,
