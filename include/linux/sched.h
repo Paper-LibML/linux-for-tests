@@ -521,6 +521,10 @@ struct sched_statistics {
 	u64				nr_wakeups_affine_attempts;
 	u64				nr_wakeups_passive;
 	u64				nr_wakeups_idle;
+
+#ifdef CONFIG_RANDOMIZE_CFS
+	u64				nr_random_picks;
+#endif
 #endif
 };
 
