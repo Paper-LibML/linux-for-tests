@@ -191,8 +191,7 @@ static int random_cfs_stats_show(struct seq_file *m, void *v)
 			continue;
 
 		se = &t->se;
-
-		seq_printf(m, "PID %d (%s) picked %llu times\n",
+		seq_printf(m, "\tPID %5d\t(%-15s)\tpicked %8llu times\n",
 		           t->pid, t->comm, se->statistics.nr_random_picks);
 	}
 
