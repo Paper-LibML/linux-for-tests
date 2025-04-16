@@ -182,20 +182,66 @@ static int random_cfs_stats_show(struct seq_file *m, void *v)
 	struct task_struct *t;
 	struct sched_entity *se;
 
-	for_each_process_thread(p, t) {
-		if (t->sched_class != &fair_sched_class)
-			continue;
+    // Print header for fair_sched_class tasks
+	seq_printf(m, "\nFair Scheduler Tasks:\n");
+	seq_printf(m, "-----------------------\n");
 
-		if (comm_prefix_filter[0] &&
-		    strncmp(t->comm, comm_prefix_filter, strlen(comm_prefix_filter)) != 0)
-			continue;
+    /*
+     * Iterate over all processes and threads.
+     * For each process, iterate through its threads using for_each_thread().
+     */
+	for_each_process(p) {
+	    if (p->sched_class != &fair_sched_class)
+            continue;
 
-		se = &t->se;
-		seq_printf(m, "\tPID %5d\t(%-15s)\tpicked %8llu times\n",
-		           t->pid, t->comm, se->statistics.nr_random_picks);
-	}
+        if (comm_prefix_filter[0] &&
+            strncmp(p->comm, comm_prefix_filter, strlen(comm_prefix_filter)) != 0)
+            continue;
 
-	return 0;
+        se = &p->se;
+        seq_printf(m, "PID %5d\t(%s)\tpicked %8llu times\n",
+                   p->pid, p->comm, se->statistics.nr_random_picks);
+
+        for_each_thread(p, t) {
+            if (t == p)
+                continue;
+
+            se = &t->se;
+            seq_printf(m, " |--- TID %5d\t(%s)\tpicked %8llu times\n",
+                       t->pid, t->comm, se->statistics.nr_random_picks);
+        }
+    }
+
+    // Print header for rt_sched_class tasks
+    seq_printf(m, "\nReal-Time Scheduler Tasks:\n");
+    seq_printf(m, "--------------------------\n");
+
+    /*
+     * Same as above for RT tasks, iterate over processes and their threads.
+     */
+    for_each_process(p) {
+        if (p->sched_class != &rt_sched_class)
+            continue;
+
+        if (comm_prefix_filter[0] &&
+            strncmp(p->comm, comm_prefix_filter, strlen(comm_prefix_filter)) != 0)
+            continue;
+
+        se = &p->se;
+        seq_printf(m, "PID %5d\t(%s)\tpicked %8llu times\n",
+                   p->pid, p->comm, se->statistics.nr_random_picks);
+
+        for_each_thread(p, t) {
+            if (t == p)  // Skip the process itself
+                continue;
+
+            se = &t->se;
+            seq_printf(m, " |--- TID %5d\t(%s)\tpicked %8llu times\n",
+                       t->pid, t->comm, se->statistics.nr_random_picks);
+        }
+    }
+
+    return 0;
 }
 
 static int random_cfs_stats_open(struct inode *inode, struct file *file)
