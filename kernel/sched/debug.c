@@ -182,66 +182,57 @@ static int random_cfs_stats_show(struct seq_file *m, void *v)
 	struct task_struct *t;
 	struct sched_entity *se;
 
-    // Print header for fair_sched_class tasks
 	seq_printf(m, "\nFair Scheduler Tasks:\n");
 	seq_printf(m, "-----------------------\n");
 
-    /*
-     * Iterate over all processes and threads.
-     * For each process, iterate through its threads using for_each_thread().
-     */
 	for_each_process(p) {
-	    if (p->sched_class != &fair_sched_class)
-            continue;
+		if (p->sched_class != &fair_sched_class)
+			continue;
 
-        if (comm_prefix_filter[0] &&
-            strncmp(p->comm, comm_prefix_filter, strlen(comm_prefix_filter)) != 0)
-            continue;
+		if (comm_prefix_filter[0] &&
+			strncmp(p->comm, comm_prefix_filter, strlen(comm_prefix_filter)) != 0)
+			continue;
 
-        se = &p->se;
-        seq_printf(m, "PID %5d\t(%s)\tpicked %8llu times\n",
-                   p->pid, p->comm, se->statistics.nr_random_picks);
-
-        for_each_thread(p, t) {
-            if (t == p)
-                continue;
-
-            se = &t->se;
-            seq_printf(m, " |--- TID %5d\t(%s)\tpicked %8llu times\n",
-                       t->pid, t->comm, se->statistics.nr_random_picks);
-        }
-    }
-
-    // Print header for rt_sched_class tasks
-    seq_printf(m, "\nReal-Time Scheduler Tasks:\n");
-    seq_printf(m, "--------------------------\n");
-
-    /*
-     * Same as above for RT tasks, iterate over processes and their threads.
-     */
-    for_each_process(p) {
-        if (p->sched_class != &rt_sched_class)
-            continue;
-
-        if (comm_prefix_filter[0] &&
-            strncmp(p->comm, comm_prefix_filter, strlen(comm_prefix_filter)) != 0)
-            continue;
-
-        se = &p->se;
-        seq_printf(m, "PID %5d\t(%s)\tpicked %8llu times\n",
-                   p->pid, p->comm, se->statistics.nr_random_picks);
+		se = &p->se;
+		seq_printf(m, "PID       %5d\tflags %08X\tKernel Task: %d\tpicked %8llu times\t(%s)\n",
+					p->pid, p->flags, (p->flags & PF_KTHREAD) ? 1 : 0, se->statistics.nr_random_picks, p->comm);
 
         for_each_thread(p, t) {
-            if (t == p)  // Skip the process itself
-                continue;
+			if (t == p)
+				continue;
 
-            se = &t->se;
-            seq_printf(m, " |--- TID %5d\t(%s)\tpicked %8llu times\n",
-                       t->pid, t->comm, se->statistics.nr_random_picks);
-        }
-    }
+			se = &t->se;
+			seq_printf(m, " |--- TID %5d\tflags %08X\tKernel Task: %d\tpicked %8llu times\t(%s)\n",
+					   t->pid, t->flags, (t->flags & PF_KTHREAD) ? 1 : 0, se->statistics.nr_random_picks, t->comm);
+		}
+	}
 
-    return 0;
+	seq_printf(m, "\nReal-Time Scheduler Tasks:\n");
+	seq_printf(m, "--------------------------\n");
+
+	for_each_process(p) {
+		if (p->sched_class != &rt_sched_class)
+			continue;
+
+		if (comm_prefix_filter[0] &&
+		    strncmp(p->comm, comm_prefix_filter, strlen(comm_prefix_filter)) != 0)
+			continue;
+
+		se = &p->se;
+		seq_printf(m, "PID       %5d\tflags %08X\tKernel Task: %d\tpicked %8llu times\t(%s)\n",
+					p->pid, p->flags, (p->flags & PF_KTHREAD) ? 1 : 0, se->statistics.nr_random_picks, p->comm);
+
+		for_each_thread(p, t) {
+			if (t == p)
+				continue;
+
+			se = &t->se;
+			seq_printf(m, " |--- TID %08X\tflags %08X\tKernel Task: %d\tpicked %8llu times\t(%s)\n",
+					   t->pid, t->flags, (t->flags & PF_KTHREAD) ? 1 : 0, se->statistics.nr_random_picks, t->comm);
+		}
+	}
+
+	return 0;
 }
 
 static int random_cfs_stats_open(struct inode *inode, struct file *file)
