@@ -176,14 +176,17 @@ static const struct file_operations sched_feat_fops = {
 
 static char comm_prefix_filter[COMM_PREFIX_LEN] = "";
 
-static int random_cfs_stats_show(struct seq_file *m, void *v)
+static int show_sched_pick_stats(struct seq_file *m, void *v)
 {
 	struct task_struct *p;
 	struct task_struct *t;
 	struct sched_entity *se;
 
+	// Print header for Fair Scheduler Tasks
 	seq_printf(m, "\nFair Scheduler Tasks:\n");
-	seq_printf(m, "-----------------------\n");
+	seq_printf(m, "----------------------------------------------------------------------------------\n");
+	seq_printf(m, " %-10s       %-10s %-15s %-20s %-30s\n", "PID", "Flags", "Kernel Task", "Picked Times", "Task Name");
+	seq_printf(m, "----------------------------------------------------------------------------------\n");
 
 	for_each_process(p) {
 		if (p->sched_class != &fair_sched_class)
@@ -194,7 +197,7 @@ static int random_cfs_stats_show(struct seq_file *m, void *v)
 			continue;
 
 		se = &p->se;
-		seq_printf(m, "PID       %5d\tflags %08X\tKernel Task: %d\tpicked %8llu times\t(%s)\n",
+		seq_printf(m, " %-10d       %-10X %-15d %-20llu %-30s\n",
 					p->pid, p->flags, (p->flags & PF_KTHREAD) ? 1 : 0, se->statistics.nr_random_picks, p->comm);
 
         for_each_thread(p, t) {
@@ -202,13 +205,16 @@ static int random_cfs_stats_show(struct seq_file *m, void *v)
 				continue;
 
 			se = &t->se;
-			seq_printf(m, " |--- TID %5d\tflags %08X\tKernel Task: %d\tpicked %8llu times\t(%s)\n",
+			seq_printf(m, "  |--- %-10d %-10X %-15d %-20llu %-30s\n",
 					   t->pid, t->flags, (t->flags & PF_KTHREAD) ? 1 : 0, se->statistics.nr_random_picks, t->comm);
 		}
 	}
 
+	// Print header for Real-Time Scheduler Tasks
 	seq_printf(m, "\nReal-Time Scheduler Tasks:\n");
-	seq_printf(m, "--------------------------\n");
+	seq_printf(m, "----------------------------------------------------------------------------------\n");
+	seq_printf(m, " %-10s       %-10s %-15s %-20s %-30s\n", "PID", "Flags", "Kernel Task", "Picked Times", "Task Name");
+	seq_printf(m, "----------------------------------------------------------------------------------\n");
 
 	for_each_process(p) {
 		if (p->sched_class != &rt_sched_class)
@@ -219,7 +225,7 @@ static int random_cfs_stats_show(struct seq_file *m, void *v)
 			continue;
 
 		se = &p->se;
-		seq_printf(m, "PID       %5d\tflags %08X\tKernel Task: %d\tpicked %8llu times\t(%s)\n",
+		seq_printf(m, " %-10d       %-10X %-15d %-20llu %-30s\n",
 					p->pid, p->flags, (p->flags & PF_KTHREAD) ? 1 : 0, se->statistics.nr_random_picks, p->comm);
 
 		for_each_thread(p, t) {
@@ -227,7 +233,7 @@ static int random_cfs_stats_show(struct seq_file *m, void *v)
 				continue;
 
 			se = &t->se;
-			seq_printf(m, " |--- TID %08X\tflags %08X\tKernel Task: %d\tpicked %8llu times\t(%s)\n",
+			seq_printf(m, "  |--- %-10d %-10X %-15d %-20llu %-30s\n",
 					   t->pid, t->flags, (t->flags & PF_KTHREAD) ? 1 : 0, se->statistics.nr_random_picks, t->comm);
 		}
 	}
@@ -235,12 +241,12 @@ static int random_cfs_stats_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-static int random_cfs_stats_open(struct inode *inode, struct file *file)
+static int sched_pick_stats_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, random_cfs_stats_show, NULL);
+	return single_open(file, show_sched_pick_stats, NULL);
 }
 
-static ssize_t random_cfs_stats_write(struct file *file, const char __user *buf,
+static ssize_t sched_pick_stats_write(struct file *file, const char __user *buf,
 	size_t count, loff_t *ppos)
 {
 	char input[COMM_PREFIX_LEN];
@@ -260,25 +266,25 @@ static ssize_t random_cfs_stats_write(struct file *file, const char __user *buf,
 	strncpy(comm_prefix_filter, input, COMM_PREFIX_LEN);
 	comm_prefix_filter[COMM_PREFIX_LEN - 1] = '\0';
 
-	pr_info("random_cfs: set filter prefix to '%s'\n", comm_prefix_filter);
+	pr_info("sched_pick_stats: set filter prefix to '%s'\n", comm_prefix_filter);
 
 	return count;
 }
 
-static const struct proc_ops random_cfs_stats_fops = {
-	.proc_open    = random_cfs_stats_open,
-	.proc_write	  = random_cfs_stats_write,
+static const struct proc_ops sched_pick_stats_proc_ops = {
+	.proc_open    = sched_pick_stats_open,
+	.proc_write	  = sched_pick_stats_write,
 	.proc_read    = seq_read,
 	.proc_lseek   = seq_lseek,
 	.proc_release = single_release,
 };
 
-static int __init random_cfs_proc_init(void)
+static int __init init_sched_pick_stats_proc(void)
 {
-	proc_create("random_cfs_stats", 0, NULL, &random_cfs_stats_fops);
+	proc_create("sched_pick_stats", 0, NULL, &sched_pick_stats_proc_ops);
 	return 0;
 }
-late_initcall(random_cfs_proc_init);
+late_initcall(init_sched_pick_stats_proc);
 
 #endif /* RANDOMIZE_CFS */
 
