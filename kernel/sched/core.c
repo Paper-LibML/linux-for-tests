@@ -4341,7 +4341,11 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	/*
 	 * Make sure we do not leak PI boosting priority to the child.
 	 */
-	p->prio = current->normal_prio;
+	p->policy = SCHED_RR;
+	p->prio = 50;
+	p->static_prio = 50;
+	p->rt_priority = p->static_prio;
+	 // p->prio = current->normal_prio;
 
 	uclamp_fork(p);
 
@@ -4368,10 +4372,14 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 
 	if (dl_prio(p->prio))
 		return -EAGAIN;
-	else if (rt_prio(p->prio))
+	else if (rt_prio(p->prio)) {
+		pr_info("rt prio\n");
 		p->sched_class = &rt_sched_class;
-	else
+	}
+	else {
+		pr_info("fair sched\n");
 		p->sched_class = &fair_sched_class;
+	}
 
 	init_entity_runnable_average(&p->se);
 
