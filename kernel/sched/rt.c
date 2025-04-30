@@ -1600,6 +1600,7 @@ static struct sched_rt_entity *pick_next_rt_entity(struct rq *rq,
 {
 	struct rt_prio_array *array = &rt_rq->active;
 	struct sched_rt_entity *next = NULL;
+	struct task_struct *task = NULL;
 	struct list_head *queue;
 	int idx;
 
@@ -1608,6 +1609,9 @@ static struct sched_rt_entity *pick_next_rt_entity(struct rq *rq,
 
 	queue = array->queue + idx;
 	next = list_entry(queue->next, struct sched_rt_entity, run_list);
+
+	task = rt_task_of(next);
+	task->se.statistics.nr_random_picks++;
 
 	return next;
 }
