@@ -4345,10 +4345,10 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
      * real-time round-robin at the bottom of the RT band.
      */
     p->policy       = SCHED_RR;
-    p->static_prio  = MAX_RT_PRIO - 1;  /* 99 */
-    p->prio         =
-    p->normal_prio  =
-    p->rt_priority  = p->static_prio;
+    p->rt_priority  = 0;
+    p->prio         = normal_prio(p);
+    p->static_prio  = p->prio;
+    p->normal_prio  = p->prio;
 
     uclamp_fork(p);
 
