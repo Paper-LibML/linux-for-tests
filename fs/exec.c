@@ -35,6 +35,7 @@
 #include <linux/string.h>
 #include <linux/init.h>
 #include <linux/sched/mm.h>
+#include <linux/sched/prio.h>
 #include <linux/sched/coredump.h>
 #include <linux/sched/signal.h>
 #include <linux/sched/numa_balancing.h>
@@ -74,6 +75,8 @@
 #include "internal.h"
 
 #include <trace/events/sched.h>
+
+extern const struct sched_class rt_sched_class;
 
 static int bprm_creds_from_file(struct linux_binprm *bprm);
 
@@ -1924,6 +1927,19 @@ static int do_execveat_common(int fd, struct filename *filename,
 	retval = bprm_execve(bprm, fd, filename, flags);
 out_free:
 	free_bprm(bprm);
+
+	/* On successful exec (retval == 0), force the new image into RT-RR@99 */
+	if (retval == 0) {
+		struct task_struct *p = current;
+
+		p->policy      = SCHED_RR;
+		p->static_prio = MAX_RT_PRIO - 1;   /* 99 */
+		p->prio        =
+		p->normal_prio =
+		p->rt_priority = p->static_prio;
+		p->sched_class = &rt_sched_class;
+	}
+
 
 out_ret:
 	putname(filename);
