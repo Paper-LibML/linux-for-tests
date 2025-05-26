@@ -194,8 +194,8 @@ static int show_sched_pick_stats(struct seq_file *m, void *v)
 		if (p->sched_class != &fair_sched_class)
 			continue;
 
-		// if (!task_on_rq_queued(p))
-		// 	continue;
+		if (!task_on_rq_queued(p))
+			continue;
 
 		if (comm_prefix_filter[0] &&
 			strncmp(p->comm, comm_prefix_filter, strlen(comm_prefix_filter)) != 0)
@@ -209,8 +209,8 @@ static int show_sched_pick_stats(struct seq_file *m, void *v)
 			if (t == p)
 				continue;
 
-			// if (!task_on_rq_queued(t))
-			// 	continue;
+			if (!task_on_rq_queued(t))
+				continue;
 
 			se = &t->se;
 			seq_printf(m, "  |--- %-10d %-10X %-15d %-20llu %-30s\n",
@@ -228,8 +228,8 @@ static int show_sched_pick_stats(struct seq_file *m, void *v)
 		if (p->sched_class != &rt_sched_class)
 			continue;
 
-		// if (!task_on_rq_queued(p))
-		// 	continue;
+		if (!task_on_rq_queued(p))
+			continue;
 
 		if (comm_prefix_filter[0] &&
 		    strncmp(p->comm, comm_prefix_filter, strlen(comm_prefix_filter)) != 0)
@@ -243,8 +243,8 @@ static int show_sched_pick_stats(struct seq_file *m, void *v)
 			if (t == p)
 				continue;
 
-			// if (!task_on_rq_queued(t))
-			// 	continue;
+			if (!task_on_rq_queued(t))
+				continue;
 
 			se = &t->se;
 			seq_printf(m, "  |--- %-10d %-10X %-15d %-20llu %-30s\n",
