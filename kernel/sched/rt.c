@@ -1611,7 +1611,6 @@ static struct sched_rt_entity *pick_next_rt_entity(struct rq *rq,
 	next = list_entry(queue->next, struct sched_rt_entity, run_list);
 
 	task = rt_task_of(next);
-	task->se.statistics.nr_random_picks++;
 
 	return next;
 }
