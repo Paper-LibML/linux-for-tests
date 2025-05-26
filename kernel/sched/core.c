@@ -4363,9 +4363,9 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
     } else if (rt_prio(p->prio)) {
         p->sched_class = &rt_sched_class;
     } else {
-        /* (Never reached, but left for completeness) */
+		// XXX: PANIC please
+		pr_crit("Help");
         p->sched_class = &fair_sched_class;
-        set_load_weight(p, false);
     }
 
     init_entity_runnable_average(&p->se);
