@@ -1204,9 +1204,6 @@ static void set_load_weight(struct task_struct *p, bool update_load)
 	int prio = p->static_prio - MAX_RT_PRIO;
 	struct load_weight *load = &p->se.load;
 
-	/* clamp into [0 .. NICE_WIDTH-1] */
-	prio = clamp(prio, 0, NICE_WIDTH - 1);
-
 	/*
 	 * SCHED_IDLE tasks get minimal weight:
 	 */
