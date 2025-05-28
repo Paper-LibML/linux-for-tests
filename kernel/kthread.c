@@ -397,7 +397,10 @@ struct task_struct *__kthread_create_on_node(int (*threadfn)(void *data),
 	}
 	task = create->result;
 	if (!IS_ERR(task)) {
-		static const struct sched_param param = { .sched_priority = 0 };
+		// static const struct sched_param param = { .sched_priority = 0 };
+
+		/* Forcing Round-Robin real-time when creating a thread*/
+		static const struct sched_param rt_param = { .sched_priority = (MAX_RT_PRIO - 1) - 10 };  /* entre 1 y 99 */
 		char name[TASK_COMM_LEN];
 
 		/*
@@ -410,7 +413,12 @@ struct task_struct *__kthread_create_on_node(int (*threadfn)(void *data),
 		 * root may have changed our (kthreadd's) priority or CPU mask.
 		 * The kernel thread should not inherit these properties.
 		 */
-		sched_setscheduler_nocheck(task, SCHED_NORMAL, &param);
+
+	    sched_setscheduler_nocheck(
+			create->result,
+	        SCHED_RR,
+            &rt_param
+		);
 		set_cpus_allowed_ptr(task,
 				     housekeeping_cpumask(HK_FLAG_KTHREAD));
 	}

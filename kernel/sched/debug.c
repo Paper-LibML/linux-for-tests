@@ -178,81 +178,97 @@ static const struct file_operations sched_feat_fops = {
 
 static char comm_prefix_filter[COMM_PREFIX_LEN] = "";
 
+static bool is_task_valid_for_sched_class(const struct task_struct* p, const struct sched_class *cls)
+{
+	if (p->sched_class != cls)
+		return false;
+
+	// if (!task_on_rq_queued(p))
+	// 	return false;
+
+	if (comm_prefix_filter[0] &&
+		strncmp(p->comm, comm_prefix_filter, strlen(comm_prefix_filter)) != 0)
+		return false;
+
+	return true;
+}
+
+#define PRINT_TASK(tsk, type_str) do { \
+	se = &((tsk)->se); \
+	seq_printf(m, \
+		" %6d  %06X  %6d  %8u  %-8s  %12d  %20llu  %-30s\n", \
+		(tsk)->pid, \
+		(tsk)->flags, \
+		(tsk)->prio, \
+		(tsk)->rt_priority, \
+		(type_str), \
+		((tsk)->flags & PF_KTHREAD) ? 1 : 0, \
+		se->statistics.nr_random_picks, \
+		(tsk)->comm); \
+} while (0)
+
 static int show_sched_pick_stats(struct seq_file *m, void *v)
 {
-	struct task_struct *p;
-	struct task_struct *t;
-	struct sched_entity *se;
+    struct task_struct *p, *t;
+    struct sched_entity *se;
 
-	// Print header for Fair Scheduler Tasks
 	seq_printf(m, "\nFair Scheduler Tasks:\n");
-	seq_printf(m, "----------------------------------------------------------------------------------\n");
-	seq_printf(m, " %-10s       %-10s %-15s %-20s %-30s\n", "PID", "Flags", "Kernel Task", "Picked Times", "Task Name");
-	seq_printf(m, "----------------------------------------------------------------------------------\n");
+    seq_printf(m,
+        "-----------------------------------------------------------------------------------------------------------------\n");
+    seq_printf(m,
+        " %-6s  %-6s  %-6s  %-8s  %-8s  %-12s  %-20s  %-30s\n",
+        "PID", "Flags", "Prio", "RTPrio", "Type", "KThread", "Picked Times", "Command");
+    seq_printf(m,
+        "-----------------------------------------------------------------------------------------------------------------\n");
 
-	for_each_process(p) {
-		if (p->sched_class != &fair_sched_class)
+    for_each_process(p) {
+		if (!is_task_valid_for_sched_class(p, &fair_sched_class))
 			continue;
 
-		if (!task_on_rq_queued(p))
+        if (p->sched_class == &fair_sched_class) {
+            PRINT_TASK(p, "Process");
+
+            for_each_thread(p, t) {
+                if (t == p)
+                    continue;
+
+				if (!is_task_valid_for_sched_class(t, &fair_sched_class))
+					continue;
+
+                PRINT_TASK(t, "Thread");
+            }
+        }
+    }
+
+    seq_printf(m, "\nReal-Time Tasks:\n");
+    seq_printf(m,
+        "-----------------------------------------------------------------------------------------------------------------\n");
+    seq_printf(m,
+        " %-6s  %-6s  %-6s  %-8s  %-8s  %-12s  %-20s  %-30s\n",
+        "PID", "Flags", "Prio", "RTPrio", "Type", "KThread", "Picked Times", "Command");
+    seq_printf(m,
+        "-----------------------------------------------------------------------------------------------------------------\n");
+
+    for_each_process(p) {
+		if (!is_task_valid_for_sched_class(p, &rt_sched_class))
 			continue;
 
-		if (comm_prefix_filter[0] &&
-			strncmp(p->comm, comm_prefix_filter, strlen(comm_prefix_filter)) != 0)
-			continue;
-
-		se = &p->se;
-		seq_printf(m, " %-10d       %-10X %-15d %-20llu %-30s\n",
-					p->pid, p->flags, (p->flags & PF_KTHREAD) ? 1 : 0, se->statistics.nr_random_picks, p->comm);
+        PRINT_TASK(p, "Process");
 
         for_each_thread(p, t) {
 			if (t == p)
+                continue;
+
+			if (!is_task_valid_for_sched_class(t, &rt_sched_class))
 				continue;
 
-			if (!task_on_rq_queued(t))
-				continue;
+			PRINT_TASK(t, "Thread");
+        }
+    }
 
-			se = &t->se;
-			seq_printf(m, "  |--- %-10d %-10X %-15d %-20llu %-30s\n",
-					   t->pid, t->flags, (t->flags & PF_KTHREAD) ? 1 : 0, se->statistics.nr_random_picks, t->comm);
-		}
-	}
+    #undef PRINT_TASK
 
-	// Print header for Real-Time Scheduler Tasks
-	seq_printf(m, "\nReal-Time Scheduler Tasks:\n");
-	seq_printf(m, "----------------------------------------------------------------------------------\n");
-	seq_printf(m, " %-10s       %-10s %-15s %-20s %-30s\n", "PID", "Flags", "Kernel Task", "Picked Times", "Task Name");
-	seq_printf(m, "----------------------------------------------------------------------------------\n");
-
-	for_each_process(p) {
-		if (p->sched_class != &rt_sched_class)
-			continue;
-
-		if (!task_on_rq_queued(p))
-			continue;
-
-		if (comm_prefix_filter[0] &&
-		    strncmp(p->comm, comm_prefix_filter, strlen(comm_prefix_filter)) != 0)
-			continue;
-
-		se = &p->se;
-		seq_printf(m, " %-10d       %-10X %-15d %-20llu %-30s\n",
-					p->pid, p->flags, (p->flags & PF_KTHREAD) ? 1 : 0, se->statistics.nr_random_picks, p->comm);
-
-		for_each_thread(p, t) {
-			if (t == p)
-				continue;
-
-			if (!task_on_rq_queued(t))
-				continue;
-
-			se = &t->se;
-			seq_printf(m, "  |--- %-10d %-10X %-15d %-20llu %-30s\n",
-					   t->pid, t->flags, (t->flags & PF_KTHREAD) ? 1 : 0, se->statistics.nr_random_picks, t->comm);
-		}
-	}
-
-	return 0;
+    return 0;
 }
 
 static int sched_pick_stats_open(struct inode *inode, struct file *file)
