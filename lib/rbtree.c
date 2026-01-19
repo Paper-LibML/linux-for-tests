@@ -550,6 +550,28 @@ struct rb_node *rb_prev(const struct rb_node *node)
 }
 EXPORT_SYMBOL(rb_prev);
 
+struct rb_node *rb_index(const struct rb_root *root, unsigned long index)
+{
+	struct rb_node *node;
+
+	// NOTE: Uglily avoid out of bounds
+	index = index % rb_get_node_count(root);
+
+	node = root->rb_node;
+
+	if (!node)
+		return NULL;
+
+	while (index != 0) {
+		index -= 1;
+		node = rb_next(node);
+	}
+  
+	return node;
+}
+EXPORT_SYMBOL(rb_index);
+
+
 void rb_replace_node(struct rb_node *victim, struct rb_node *new,
 		     struct rb_root *root)
 {
