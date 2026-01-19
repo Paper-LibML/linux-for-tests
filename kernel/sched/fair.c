@@ -21,6 +21,7 @@
  *  Copyright (C) 2007 Red Hat, Inc., Peter Zijlstra
  */
 #include "sched.h"
+#include <linux/random.h>
 
 /*
  * Targeted preemption latency for CPU-bound tasks:
@@ -7258,6 +7259,17 @@ again:
 }
 #endif
 
+typedef int (*cfs_mlp_infer_func_t)(float*, int*);
+
+cfs_mlp_infer_func_t cfs_mlp_infer_hook = NULL;
+EXPORT_SYMBOL(cfs_mlp_infer_hook);
+
+u32 cfs_mlp_infer_max_tasks = 0;
+EXPORT_SYMBOL(cfs_mlp_infer_max_tasks);
+
+float* cfs_mlp_infer_features = NULL;
+EXPORT_SYMBOL(cfs_mlp_infer_features);
+
 struct task_struct *
 pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 {
@@ -7265,6 +7277,29 @@ pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf
 	struct sched_entity *se;
 	struct task_struct *p;
 	int new_tasks;
+
+	int64_t const max_vruntime = 9223372036854775807;
+
+	int index = 0; 
+	int evaluated = 0; 
+
+	if (READ_ONCE(cfs_mlp_infer_hook)) {
+		if (unlikely(prandom_u32_max(400) == 0)) {
+			pr_info("Hooked: pick_next_task_fair: cpu %d runqueue has %d tasks\n",
+				rq->cpu, rq->nr_running);
+		}
+
+		if (rq->nr_running <= cfs_mlp_infer_max_tasks) {
+		  cfs_mlp_infer_hook(cfs_mlp_infer_features, &index);
+		  evaluated = 1;
+		}
+
+	}
+
+	if (evaluated && unlikely(prandom_u32_max(400) == 0)) {
+		pr_info("Inference returned %i\n", index);
+	}
+
 
 again:
 	if (!sched_fair_runnable(rq))
