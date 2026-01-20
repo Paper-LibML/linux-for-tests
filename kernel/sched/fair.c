@@ -606,6 +606,23 @@ static struct sched_entity *__pick_next_entity(struct sched_entity *se)
 	return __node_2_se(next);
 }
 
+// XXX: Why noinline?
+static noinline struct sched_entity *
+__pick_index_entity(struct cfs_rq* cfs_rq, int index)
+{
+	struct rb_node *next;
+	struct sched_entity *se;
+
+	next = rb_index(&cfs_rq->tasks_timeline.rb_root, index);
+
+	if (!next)
+		return NULL;
+
+	se = __node_2_se(next);
+
+	return se;
+}
+
 #ifdef CONFIG_SCHED_DEBUG
 struct sched_entity *__pick_last_entity(struct cfs_rq *cfs_rq)
 {
@@ -4524,6 +4541,38 @@ wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se);
 static struct sched_entity *
 pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 {
+	int64_t const max_vruntime = 9223372036854775807;
+
+	int index = 0; 
+	int evaluated = 0; 
+
+	if (READ_ONCE(cfs_mlp_infer_hook)) {
+		if (unlikely(prandom_u32_max(400) == 0)) {
+			pr_info("Hooked: pick_next_task_fair: cpu %d runqueue has %d tasks\n",
+				rq->cpu, rq->nr_running);
+		}
+
+		if (rq->nr_running <= cfs_mlp_infer_max_tasks) {
+			cfs_mlp_infer_hook(cfs_mlp_infer_features, &index);
+			evaluated = 1;
+		}
+
+		if (evaluated && unlikely(prandom_u32_max(400) == 0)) {
+			pr_info("Inference returned %i\n", index);
+		}
+
+		if (evaluated) {
+			struct sched_entity *se = __pick_index_entity(cfs_rq, index);
+
+			if (!se) {
+				return curr;
+			}
+		  
+			return se;
+		}
+	}
+
+
 	struct sched_entity *left = __pick_first_entity(cfs_rq);
 	struct sched_entity *se;
 
@@ -7277,29 +7326,6 @@ pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf
 	struct sched_entity *se;
 	struct task_struct *p;
 	int new_tasks;
-
-	int64_t const max_vruntime = 9223372036854775807;
-
-	int index = 0; 
-	int evaluated = 0; 
-
-	if (READ_ONCE(cfs_mlp_infer_hook)) {
-		if (unlikely(prandom_u32_max(400) == 0)) {
-			pr_info("Hooked: pick_next_task_fair: cpu %d runqueue has %d tasks\n",
-				rq->cpu, rq->nr_running);
-		}
-
-		if (rq->nr_running <= cfs_mlp_infer_max_tasks) {
-		  cfs_mlp_infer_hook(cfs_mlp_infer_features, &index);
-		  evaluated = 1;
-		}
-
-	}
-
-	if (evaluated && unlikely(prandom_u32_max(400) == 0)) {
-		pr_info("Inference returned %i\n", index);
-	}
-
 
 again:
 	if (!sched_fair_runnable(rq))
