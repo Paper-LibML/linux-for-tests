@@ -557,12 +557,9 @@ struct rb_node *rb_index(const struct rb_root *root, unsigned long index)
 {
 	struct rb_node *node;
 
-	// NOTE: Uglily avoid out of bounds
-	index = index % root->rb_num_nodes;
-
 	node = root->rb_node;
 
-	if (!node)
+	if (!node || root->rb_num_nodes <= 0 || index >= root->rb_num_nodes)
 		return NULL;
 
 	while (index != 0) {
