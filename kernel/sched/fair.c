@@ -4528,6 +4528,20 @@ set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	se->prev_sum_exec_runtime = se->sum_exec_runtime;
 }
 
+typedef int (*cfs_mlp_infer_func_t)(int*, int*);
+
+cfs_mlp_infer_func_t cfs_mlp_infer_hook = NULL;
+EXPORT_SYMBOL(cfs_mlp_infer_hook);
+
+u32 cfs_mlp_infer_max_tasks = 0;
+EXPORT_SYMBOL(cfs_mlp_infer_max_tasks);
+
+u64* cfs_mlp_infer_features = NULL;
+EXPORT_SYMBOL(cfs_mlp_infer_features);
+
+u32 cfs_mlp_infer_task_count = 0;
+EXPORT_SYMBOL(cfs_mlp_infer_task_count);
+
 static int
 wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se);
 
@@ -4541,10 +4555,47 @@ wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se);
 static struct sched_entity *
 pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 {
-	int64_t const max_vruntime = 9223372036854775807;
+	const int64_t max_vruntime __maybe_unused = 9223372036854775807;
+	struct rq *rq = rq_of(cfs_rq);
+	u64 *mlp_features = READ_ONCE(cfs_mlp_infer_features);
+	u32 mlp_task_count = 0;
+	u32 mlp_max_tasks = READ_ONCE(cfs_mlp_infer_max_tasks);
+	int index = 0;
+	int evaluated = 0;
 
-	int index = 0; 
-	int evaluated = 0; 
+	if (mlp_features && mlp_max_tasks &&
+	    rq->nr_running <= mlp_max_tasks) {
+		// NOTE: Fill with useful data?
+		u32 other_headers = 20;
+		int i = 0;
+		for (i = 0; i < other_headers; i++) {
+			mlp_features[i] = 0.0;
+		}
+
+		struct rb_node *node;
+
+		for (node = rb_first_cached(&cfs_rq->tasks_timeline);
+		     node && mlp_task_count < mlp_max_tasks;
+		     node = rb_next(node)) {
+			struct sched_entity *se = __node_2_se(node);
+
+			// TODO: What about group scheduling? Disabled hopefully
+			if (!entity_is_task(se)) {
+				continue;
+			}
+		  
+			// FIXME: Not proper translation
+			mlp_features[other_headers + mlp_task_count * 2] =
+				task_of(se)->pid;
+			mlp_features[other_headers + mlp_task_count * 2 + 1] =
+				se->vruntime;
+			mlp_task_count++;
+		}
+
+		WRITE_ONCE(cfs_mlp_infer_task_count, mlp_task_count);
+	} else {
+		WRITE_ONCE(cfs_mlp_infer_task_count, 0);
+	}
 
 	if (READ_ONCE(cfs_mlp_infer_hook)) {
 		if (unlikely(prandom_u32_max(400) == 0)) {
@@ -7307,17 +7358,6 @@ again:
 	return task_of(se);
 }
 #endif
-
-typedef int (*cfs_mlp_infer_func_t)(float*, int*);
-
-cfs_mlp_infer_func_t cfs_mlp_infer_hook = NULL;
-EXPORT_SYMBOL(cfs_mlp_infer_hook);
-
-u32 cfs_mlp_infer_max_tasks = 0;
-EXPORT_SYMBOL(cfs_mlp_infer_max_tasks);
-
-float* cfs_mlp_infer_features = NULL;
-EXPORT_SYMBOL(cfs_mlp_infer_features);
 
 struct task_struct *
 pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
