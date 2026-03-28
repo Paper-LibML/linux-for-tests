@@ -4528,7 +4528,7 @@ set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	se->prev_sum_exec_runtime = se->sum_exec_runtime;
 }
 
-typedef int (*cfs_mlp_infer_func_t)(int*, int*);
+typedef int (*cfs_mlp_infer_func_t)(u64*, u64*);
 
 cfs_mlp_infer_func_t cfs_mlp_infer_hook = NULL;
 EXPORT_SYMBOL(cfs_mlp_infer_hook);
@@ -4560,9 +4560,13 @@ pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 	u64 *mlp_features = READ_ONCE(cfs_mlp_infer_features);
 	u32 mlp_task_count = 0;
 	u32 mlp_max_tasks = READ_ONCE(cfs_mlp_infer_max_tasks);
-	int index = 0;
+	u64 index = 0;
 	int evaluated = 0;
 
+  // FIXME: It has come to my attention that we have a concurrency problem
+  // between threads as the buffer for inference is shared. We could have
+  // different buffers for each CPU to avoid locking or assume the single is
+  // single CPU (yay!).
 	if (mlp_features && mlp_max_tasks &&
 	    rq->nr_running <= mlp_max_tasks) {
 		// NOTE: Fill with useful data?
@@ -4609,7 +4613,7 @@ pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 		}
 
 		if (evaluated && unlikely(prandom_u32_max(400) == 0)) {
-			pr_info("Inference returned %i\n", index);
+			pr_info("Inference returned %ul\n", index);
 		}
 
 		if (evaluated) {
