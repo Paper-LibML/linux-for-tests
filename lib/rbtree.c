@@ -460,6 +460,7 @@ void __rb_insert_augmented(struct rb_node *node, struct rb_root *root,
 	void (*augment_rotate)(struct rb_node *old, struct rb_node *new))
 {
 	__rb_insert(node, root, augment_rotate);
+	root->rb_num_nodes += 1;
 }
 EXPORT_SYMBOL(__rb_insert_augmented);
 
@@ -557,7 +558,7 @@ struct rb_node *rb_index(const struct rb_root *root, unsigned long index)
 {
 	struct rb_node *node;
 
-	node = root->rb_node;
+	node = rb_first(root);
 
 	if (!node || root->rb_num_nodes <= 0 || index >= root->rb_num_nodes)
 		return NULL;

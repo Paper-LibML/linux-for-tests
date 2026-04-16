@@ -608,7 +608,7 @@ static struct sched_entity *__pick_next_entity(struct sched_entity *se)
 
 // XXX: Why noinline?
 static noinline struct sched_entity *
-__pick_index_entity(struct cfs_rq* cfs_rq, int index)
+__pick_index_entity(struct cfs_rq* cfs_rq, u64 index)
 {
 	struct rb_node *next;
 	struct sched_entity *se;
