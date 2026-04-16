@@ -4536,11 +4536,18 @@ EXPORT_SYMBOL(cfs_mlp_infer_hook);
 u32 cfs_mlp_infer_max_tasks = 0;
 EXPORT_SYMBOL(cfs_mlp_infer_max_tasks);
 
-u64* cfs_mlp_infer_features = NULL;
-EXPORT_SYMBOL(cfs_mlp_infer_features);
+DEFINE_PER_CPU(u64 *, cfs_mlp_infer_features);
+EXPORT_PER_CPU_SYMBOL(cfs_mlp_infer_features);
 
-u32 cfs_mlp_infer_task_count = 0;
-EXPORT_SYMBOL(cfs_mlp_infer_task_count);
+/*
+ * Number of u64 elements in each per-CPU cfs_mlp_infer_features buffer.
+ * Must be >= 20 + cfs_mlp_infer_max_tasks * 2 or inference is skipped.
+ */
+u32 cfs_mlp_infer_features_size = 0;
+EXPORT_SYMBOL(cfs_mlp_infer_features_size);
+
+DEFINE_PER_CPU(u32, cfs_mlp_infer_task_count);
+EXPORT_PER_CPU_SYMBOL(cfs_mlp_infer_task_count);
 
 static int
 wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se);
@@ -4557,24 +4564,28 @@ pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 {
 	const int64_t max_vruntime __maybe_unused = 9223372036854775807;
 	struct rq *rq = rq_of(cfs_rq);
-	u64 *mlp_features = READ_ONCE(cfs_mlp_infer_features);
+	/* Snapshot per-CPU pointer and nr_running once to avoid TOCTOU races. */
+	u64 *mlp_features = this_cpu_read(cfs_mlp_infer_features);
 	u32 mlp_task_count = 0;
 	u32 mlp_max_tasks = READ_ONCE(cfs_mlp_infer_max_tasks);
+	u32 features_size = READ_ONCE(cfs_mlp_infer_features_size);
+	u32 nr_running = READ_ONCE(rq->nr_running);
 	u64 index = 0;
 	int evaluated = 0;
 
-  // FIXME: It has come to my attention that we have a concurrency problem
-  // between threads as the buffer for inference is shared. We could have
-  // different buffers for each CPU to avoid locking or assume the single is
-  // single CPU (yay!).
+	/*
+	 * Each CPU operates on its own per-CPU buffer, so no cross-CPU
+	 * synchronisation is needed.  Verify the buffer is large enough
+	 * (20 fixed headers + 2 fields per task) before writing.
+	 */
 	if (mlp_features && mlp_max_tasks &&
-	    rq->nr_running <= mlp_max_tasks) {
-		// NOTE: Fill with useful data?
+	    features_size >= 20 + mlp_max_tasks * 2 &&
+	    nr_running <= mlp_max_tasks) {
 		u32 other_headers = 20;
 		int i = 0;
-		for (i = 0; i < other_headers; i++) {
-			mlp_features[i] = 0.0;
-		}
+
+		for (i = 0; i < other_headers; i++)
+			mlp_features[i] = 0;
 
 		struct rb_node *node;
 
@@ -4584,11 +4595,9 @@ pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 			struct sched_entity *se = __node_2_se(node);
 
 			// TODO: What about group scheduling? Disabled hopefully
-			if (!entity_is_task(se)) {
+			if (!entity_is_task(se))
 				continue;
-			}
-		  
-			// FIXME: Not proper translation
+
 			mlp_features[other_headers + mlp_task_count * 2] =
 				task_of(se)->pid;
 			mlp_features[other_headers + mlp_task_count * 2 + 1] =
@@ -4596,19 +4605,21 @@ pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 			mlp_task_count++;
 		}
 
-		WRITE_ONCE(cfs_mlp_infer_task_count, mlp_task_count);
+		this_cpu_write(cfs_mlp_infer_task_count, mlp_task_count);
 	} else {
-		WRITE_ONCE(cfs_mlp_infer_task_count, 0);
+		this_cpu_write(cfs_mlp_infer_task_count, 0);
 	}
 
-	if (READ_ONCE(cfs_mlp_infer_hook)) {
+	cfs_mlp_infer_func_t mlp_hook = READ_ONCE(cfs_mlp_infer_hook);
+
+	if (mlp_hook) {
 		if (unlikely(prandom_u32_max(400) == 0)) {
 			pr_info("Hooked: pick_next_task_fair: cpu %d runqueue has %d tasks\n",
-				rq->cpu, rq->nr_running);
+				rq->cpu, nr_running);
 		}
 
-		if (rq->nr_running <= cfs_mlp_infer_max_tasks) {
-			cfs_mlp_infer_hook(cfs_mlp_infer_features, &index);
+		if (nr_running <= mlp_max_tasks) {
+			mlp_hook(mlp_features, &index);
 			evaluated = 1;
 		}
 
