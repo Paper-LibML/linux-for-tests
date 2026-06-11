@@ -1,0 +1,1 @@
+#define XA_CHUNK_SHIFT 3

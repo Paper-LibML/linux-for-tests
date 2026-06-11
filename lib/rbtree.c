@@ -434,6 +434,7 @@ static const struct rb_augment_callbacks dummy_callbacks = {
 void rb_insert_color(struct rb_node *node, struct rb_root *root)
 {
 	__rb_insert(node, root, dummy_rotate);
+	root->rb_num_nodes += 1;
 }
 EXPORT_SYMBOL(rb_insert_color);
 
@@ -443,6 +444,8 @@ void rb_erase(struct rb_node *node, struct rb_root *root)
 	rebalance = __rb_erase_augmented(node, root, &dummy_callbacks);
 	if (rebalance)
 		____rb_erase_color(rebalance, root, dummy_rotate);
+
+	root->rb_num_nodes -= 1;
 }
 EXPORT_SYMBOL(rb_erase);
 
@@ -457,6 +460,7 @@ void __rb_insert_augmented(struct rb_node *node, struct rb_root *root,
 	void (*augment_rotate)(struct rb_node *old, struct rb_node *new))
 {
 	__rb_insert(node, root, augment_rotate);
+	root->rb_num_nodes += 1;
 }
 EXPORT_SYMBOL(__rb_insert_augmented);
 
@@ -549,6 +553,24 @@ struct rb_node *rb_prev(const struct rb_node *node)
 	return parent;
 }
 EXPORT_SYMBOL(rb_prev);
+
+struct rb_node *rb_index(const struct rb_root *root, unsigned long index)
+{
+	struct rb_node *node;
+
+	node = rb_first(root);
+
+	if (!node || root->rb_num_nodes <= 0 || index >= root->rb_num_nodes)
+		return NULL;
+
+	while (index != 0) {
+		index -= 1;
+		node = rb_next(node);
+	}
+
+	return node;
+}
+EXPORT_SYMBOL(rb_index);
 
 void rb_replace_node(struct rb_node *victim, struct rb_node *new,
 		     struct rb_root *root)

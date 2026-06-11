@@ -885,6 +885,22 @@ struct sched_entity *__pick_first_entity(struct cfs_rq *cfs_rq)
 	return __node_2_se(left);
 }
 
+static noinline struct sched_entity *
+__pick_index_entity(struct cfs_rq *cfs_rq, u64 index)
+{
+	struct rb_node *next;
+	struct sched_entity *se;
+
+	next = rb_index(&cfs_rq->tasks_timeline.rb_root, index);
+
+	if (!next)
+		return NULL;
+
+	se = __node_2_se(next);
+
+	return se;
+}
+
 /*
  * Earliest Eligible Virtual Deadline First
  *
@@ -5602,6 +5618,20 @@ set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 
 static int dequeue_entities(struct rq *rq, struct sched_entity *se, int flags);
 
+typedef int (*cfs_mlp_infer_func_t)(u64 *, u64 *);
+
+cfs_mlp_infer_func_t cfs_mlp_infer_hook = NULL;
+EXPORT_SYMBOL(cfs_mlp_infer_hook);
+
+u32 cfs_mlp_infer_max_tasks = 0;
+EXPORT_SYMBOL(cfs_mlp_infer_max_tasks);
+
+u64 *cfs_mlp_infer_features = NULL;
+EXPORT_SYMBOL(cfs_mlp_infer_features);
+
+u32 cfs_mlp_infer_task_count = 0;
+EXPORT_SYMBOL(cfs_mlp_infer_task_count);
+
 /*
  * Pick the next process, keeping these things in mind, in this order:
  * 1) keep things fair between processes/task groups
@@ -5612,6 +5642,65 @@ static int dequeue_entities(struct rq *rq, struct sched_entity *se, int flags);
 static struct sched_entity *
 pick_next_entity(struct rq *rq, struct cfs_rq *cfs_rq)
 {
+	u64 *mlp_features = READ_ONCE(cfs_mlp_infer_features);
+	u32 mlp_task_count = 0;
+	u32 mlp_max_tasks = READ_ONCE(cfs_mlp_infer_max_tasks);
+	u64 index = 0;
+	int evaluated = 0;
+
+	if (mlp_features && mlp_max_tasks &&
+	    rq->nr_running <= mlp_max_tasks) {
+		/* FIXME: concurrency problem — shared buffer across CPUs */
+		u32 other_headers = 20;
+		struct rb_node *node;
+		int i;
+
+		for (i = 0; i < other_headers; i++)
+			mlp_features[i] = 0;
+
+		for (node = rb_first_cached(&cfs_rq->tasks_timeline);
+		     node && mlp_task_count < mlp_max_tasks;
+		     node = rb_next(node)) {
+			struct sched_entity *se = __node_2_se(node);
+
+			if (!entity_is_task(se))
+				continue;
+
+			mlp_features[other_headers + mlp_task_count * 3 + 0] =
+				task_of(se)->pid;
+			mlp_features[other_headers + mlp_task_count * 3 + 1] =
+				se->vruntime;
+			mlp_features[other_headers + mlp_task_count * 3 + 2] =
+				se->deadline;
+			mlp_task_count++;
+		}
+
+		WRITE_ONCE(cfs_mlp_infer_task_count, mlp_task_count);
+	} else {
+		WRITE_ONCE(cfs_mlp_infer_task_count, 0);
+	}
+
+	if (READ_ONCE(cfs_mlp_infer_hook)) {
+		if (unlikely(get_random_u32_below(400) == 0))
+			pr_info("Hooked: pick_next_task_fair: cpu %d runqueue has %d tasks\n",
+				rq->cpu, rq->nr_running);
+
+		if (rq->nr_running <= cfs_mlp_infer_max_tasks) {
+			cfs_mlp_infer_hook(cfs_mlp_infer_features, &index);
+			evaluated = 1;
+		}
+
+		if (evaluated && unlikely(get_random_u32_below(400) == 0))
+			pr_info("Inference returned %llu\n", index);
+
+		if (evaluated) {
+			struct sched_entity *se = __pick_index_entity(cfs_rq, index);
+
+			if (se && !se->sched_delayed)
+				return se;
+		}
+	}
+
 	/*
 	 * Enabling NEXT_BUDDY will affect latency but not fairness.
 	 */
