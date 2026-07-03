@@ -70,6 +70,7 @@
 #include <linux/string.h>
 #include <linux/memory-tiers.h>
 #include <linux/debugfs.h>
+#include <linux/error-injection.h>
 #include <linux/userfaultfd_k.h>
 #include <linux/dax.h>
 #include <linux/oom.h>
@@ -5209,6 +5210,25 @@ late_initcall(fault_around_debugfs);
 #endif
 
 /*
+ * BPF prefetch hooks: bpf_prefetch_stats_hook() is a no-op fentry target
+ * fired on every fault so a BPF program can build access-pattern history.
+ * bpf_prefetch_policy_hook() defaults to "use the native prefetcher" but a
+ * BPF program can attach via fmod_ret, prefetch pages itself through the
+ * kfuncs in mm/bpf_prefetch.c, and return true to skip do_fault_around().
+ * With no BPF program attached, behavior is identical to the unpatched
+ * kernel.
+ */
+noinline void bpf_prefetch_stats_hook(struct vm_fault *vmf)
+{
+}
+
+noinline bool bpf_prefetch_policy_hook(struct vm_fault *vmf)
+{
+	return false;
+}
+ALLOW_ERROR_INJECTION(bpf_prefetch_policy_hook, TRUE);
+
+/*
  * do_fault_around() tries to map few pages around the fault address. The hope
  * is that the pages will be needed soon and this will lower the number of
  * faults to handle.
@@ -5284,7 +5304,7 @@ static vm_fault_t do_read_fault(struct vm_fault *vmf)
 	 * if page by the offset is not ready to be mapped (cold cache or
 	 * something).
 	 */
-	if (should_fault_around(vmf)) {
+	if (!bpf_prefetch_policy_hook(vmf) && should_fault_around(vmf)) {
 		ret = do_fault_around(vmf);
 		if (ret)
 			return ret;
@@ -5829,6 +5849,8 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 	pgd_t *pgd;
 	p4d_t *p4d;
 	vm_fault_t ret;
+
+	bpf_prefetch_stats_hook(&vmf);
 
 	pgd = pgd_offset(mm, address);
 	p4d = p4d_alloc(mm, pgd, address);

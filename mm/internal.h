@@ -376,6 +376,17 @@ static inline vm_fault_t vmf_anon_prepare(struct vm_fault *vmf)
 }
 
 vm_fault_t do_swap_page(struct vm_fault *vmf);
+
+/*
+ * BPF prefetch hooks (mm/memory.c). bpf_prefetch_stats_hook() is a no-op
+ * fentry target for observing every fault; bpf_prefetch_policy_hook()
+ * returns false by default and can be overridden via fmod_ret by a BPF
+ * prefetch policy to skip the native fault-around prefetcher. See
+ * mm/bpf_prefetch.c for the kfuncs a policy uses to act on this.
+ */
+void bpf_prefetch_stats_hook(struct vm_fault *vmf);
+bool bpf_prefetch_policy_hook(struct vm_fault *vmf);
+
 void folio_rotate_reclaimable(struct folio *folio);
 bool __folio_end_writeback(struct folio *folio);
 void deactivate_file_folio(struct folio *folio);
